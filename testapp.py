@@ -111,5 +111,5 @@ def balance(total:int, people:int):
     
     
     
-    
-    
+    #lllllll
+    #putito 
