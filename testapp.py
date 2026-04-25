@@ -115,3 +115,4 @@ def balance(total:int, people:int):
     #putito 
     #jonapiton
     #xssssss 
+    #danielprox
