@@ -24,4 +24,3 @@ class Expense(Base):
 
 Base.metadata.create_all(engine)
 
-print("Tablas creadas")
