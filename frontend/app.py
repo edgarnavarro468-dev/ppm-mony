@@ -1,10 +1,11 @@
-# app.py - Frontend mejorado para PPM (Finanzas Sociales)
+# app.py - Frontend mejorado para PPM (Finanzas Sociales) CON BASE DE DATOS
 import streamlit as st
 import requests
 import pandas as pd
 from datetime import datetime
 import plotly.express as px
 import plotly.graph_objects as go
+import database as db
 
 # Configuración de la página
 st.set_page_config(
@@ -17,48 +18,23 @@ st.set_page_config(
 # Configuración de la API
 API_URL = "http://localhost:8000"
 
-
-
-# ==================== SISTEMA DE AUTENTICACIÓN ====================
+# ==================== SISTEMA DE AUTENTICACIÓN CON BASE DE DATOS ====================
 # Inicializar session state para autenticación
 if 'authenticated' not in st.session_state:
     st.session_state.authenticated = False
 if 'current_user' not in st.session_state:
     st.session_state.current_user = None
 if 'auth_page' not in st.session_state:
-    st.session_state.auth_page = 'login'  # login, register, forgot, social_register
+    st.session_state.auth_page = 'login'
 if 'social_provider' not in st.session_state:
     st.session_state.social_provider = None
-
-# Usuarios simulados (en producción conectar a BD)
-if 'mock_users' not in st.session_state:
-    st.session_state.mock_users = [
-        {"email": "demo@ppm.com", "password": "123456", "name": "Alex"},
-        {"email": "edgar@ppm.com", "password": "123456", "name": "Edgar"},
-        {"email": "maria@ppm.com", "password": "123456", "name": "María"}
-    ]
-
-def show_alert(message, type="error"):
-    """Muestra mensajes de alerta"""
-    if type == "error":
-        st.error(message)
-    elif type == "success":
-        st.success(message)
-    elif type == "info":
-        st.info(message)
+if 'page' not in st.session_state:
+    st.session_state.page = "🏠 Dashboard"
 
 def render_login():
     """Pantalla de inicio de sesión"""
     st.markdown("""
     <style>
-        .login-card {
-            max-width: 450px;
-            margin: 0 auto;
-            padding: 2rem;
-            background: white;
-            border-radius: 2rem;
-            box-shadow: 0 20px 35px -10px rgba(0,0,0,0.15);
-        }
         .logo-circle-auth {
             background: #1e3a5f;
             width: 60px;
@@ -99,71 +75,61 @@ def render_login():
     </style>
     """, unsafe_allow_html=True)
     
-    with st.container():
-        col1, col2, col3 = st.columns([1, 2, 1])
-        with col2:
-            st.markdown('<div style="text-align: center;">', unsafe_allow_html=True)
-            st.markdown('<div class="logo-circle-auth">💰</div>', unsafe_allow_html=True)
-            st.markdown('<h1 class="auth-title">GastosClaro</h1>', unsafe_allow_html=True)
-            st.markdown('<p class="auth-sub">Control total · Presupuestos inteligentes</p>', unsafe_allow_html=True)
-            st.markdown('</div>', unsafe_allow_html=True)
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        st.markdown('<div style="text-align: center;">', unsafe_allow_html=True)
+        st.markdown('<div class="logo-circle-auth">💰</div>', unsafe_allow_html=True)
+        st.markdown('<h1 class="auth-title">GastosClaro</h1>', unsafe_allow_html=True)
+        st.markdown('<p class="auth-sub">Control total · Presupuestos inteligentes</p>', unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
+        
+        st.markdown("---")
+        
+        with st.form("login_form"):
+            email = st.text_input("Correo electrónico", placeholder="tu@ejemplo.com", key="login_email")
+            password = st.text_input("Contraseña", type="password", placeholder="••••••••", key="login_password")
             
-            st.markdown("---")
+            submitted = st.form_submit_button("🔓 Iniciar sesión", use_container_width=True)
             
-            with st.form("login_form"):
-                email = st.text_input("Correo electrónico", placeholder="tu@ejemplo.com", key="login_email")
-                password = st.text_input("Contraseña", type="password", placeholder="••••••••", key="login_password")
-                col_a, col_b = st.columns(2)
-                with col_a:
-                    remember = st.checkbox("Mantener sesión", value=False)
-                with col_b:
-                    pass
-                
-                submitted = st.form_submit_button("🔓 Iniciar sesión", use_container_width=True)
-                
-                if submitted:
-                    if email and password:
-                        user_found = None
-                        for u in st.session_state.mock_users:
-                            if u["email"].lower() == email.lower() and u["password"] == password:
-                                user_found = u
-                                break
-                        
-                        if user_found:
-                            st.session_state.authenticated = True
-                            st.session_state.current_user = user_found
-                            st.success(f"✅ ¡Bienvenido {user_found['name']}!")
-                            st.rerun()
-                        else:
-                            st.error("❌ Correo o contraseña incorrectos")
+            if submitted:
+                if email and password:
+                    user = db.get_user_by_email(email.lower())
+                    if user and user['hashed_password'] == password:
+                        st.session_state.authenticated = True
+                        st.session_state.current_user = {
+                            "id": user['id'],
+                            "name": user['username'],
+                            "email": user['email']
+                        }
+                        st.rerun()
                     else:
-                        st.warning("Por favor ingresa tus credenciales")
-            
-            # Botón de olvidé contraseña
-            if st.button("¿Olvidaste tu contraseña?", use_container_width=True):
-                st.session_state.auth_page = 'forgot'
+                        st.error("❌ Correo o contraseña incorrectos")
+                else:
+                    st.warning("Por favor ingresa tus credenciales")
+        
+        if st.button("¿Olvidaste tu contraseña?", use_container_width=True):
+            st.session_state.auth_page = 'forgot'
+            st.rerun()
+        
+        st.markdown('<div class="divider-auth">o accede con</div>', unsafe_allow_html=True)
+        
+        col_g, col_a = st.columns(2)
+        with col_g:
+            if st.button("🌐 Google", use_container_width=True):
+                st.session_state.auth_page = 'social_register'
+                st.session_state.social_provider = 'google'
                 st.rerun()
-            
-            st.markdown('<div class="divider-auth">o accede con</div>', unsafe_allow_html=True)
-            
-            col_g, col_a = st.columns(2)
-            with col_g:
-                if st.button("🌐 Google", use_container_width=True):
-                    st.session_state.auth_page = 'social_register'
-                    st.session_state.social_provider = 'google'
-                    st.rerun()
-            with col_a:
-                if st.button("🍎 Apple", use_container_width=True):
-                    st.session_state.auth_page = 'social_register'
-                    st.session_state.social_provider = 'apple'
-                    st.rerun()
-            
-            st.markdown("---")
-            st.markdown('<p style="text-align: center;">¿No tienes cuenta? ', unsafe_allow_html=True)
-            if st.button("Regístrate ahora", key="goto_register"):
-                st.session_state.auth_page = 'register'
+        with col_a:
+            if st.button("🍎 Apple", use_container_width=True):
+                st.session_state.auth_page = 'social_register'
+                st.session_state.social_provider = 'apple'
                 st.rerun()
-            st.markdown('</p>', unsafe_allow_html=True)
+        
+        st.markdown("---")
+        st.markdown('<p style="text-align: center;">¿No tienes cuenta? </p>', unsafe_allow_html=True)
+        if st.button("Regístrate ahora", key="goto_register"):
+            st.session_state.auth_page = 'register'
+            st.rerun()
 
 def render_register():
     """Pantalla de registro"""
@@ -197,14 +163,13 @@ def render_register():
                 elif password != confirm_password:
                     st.warning("Las contraseñas no coinciden")
                 else:
-                    exists = any(u["email"].lower() == email.lower() for u in st.session_state.mock_users)
-                    if exists:
-                        st.error("⚠️ El correo ya está registrado")
-                    else:
-                        st.session_state.mock_users.append({"email": email, "password": password, "name": name})
+                    user = db.create_user(name, email.lower(), password)
+                    if user:
                         st.success("🎉 ¡Cuenta creada con éxito! Ahora inicia sesión")
                         st.session_state.auth_page = 'login'
                         st.rerun()
+                    else:
+                        st.error("⚠️ El correo ya está registrado")
         
         st.markdown("---")
         st.markdown('<p style="text-align: center;">¿Ya tienes cuenta? </p>', unsafe_allow_html=True)
@@ -226,8 +191,8 @@ def render_forgot_password():
             
             if submitted:
                 if email:
-                    exists = any(u["email"].lower() == email.lower() for u in st.session_state.mock_users)
-                    if exists:
+                    user = db.get_user_by_email(email.lower())
+                    if user:
                         st.success("📨 Hemos enviado un enlace de recuperación a tu correo (Demo)")
                         st.session_state.auth_page = 'login'
                         st.rerun()
@@ -262,14 +227,13 @@ def render_social_register():
             
             if submitted:
                 if name and email:
-                    exists = any(u["email"].lower() == email.lower() for u in st.session_state.mock_users)
-                    if exists:
-                        st.error("⚠️ Este correo ya tiene cuenta")
-                    else:
-                        st.session_state.mock_users.append({"email": email, "password": "social_auth", "name": name})
+                    user = db.create_user(name, email.lower(), "social_auth_temp")
+                    if user:
                         st.success(f"✅ Registro con {provider_name} completado")
                         st.session_state.auth_page = 'login'
                         st.rerun()
+                    else:
+                        st.error("⚠️ Este correo ya tiene cuenta")
                 else:
                     st.warning("Completa todos los campos")
         
@@ -278,7 +242,6 @@ def render_social_register():
             st.rerun()
 
 # ==================== CHECK DE AUTENTICACIÓN ====================
-# Si no está autenticado, mostrar pantalla de login correspondiente
 if not st.session_state.authenticated:
     if st.session_state.auth_page == 'login':
         render_login()
@@ -288,8 +251,9 @@ if not st.session_state.authenticated:
         render_forgot_password()
     elif st.session_state.auth_page == 'social_register':
         render_social_register()
-    st.stop() 
+    st.stop()
 
+# ==================== CÓDIGO PRINCIPAL (SOLO SI ESTÁ AUTENTICADO) ====================
 
 # Estilos CSS personalizados
 st.markdown("""
@@ -368,7 +332,6 @@ def add_to_feed(message, type="info"):
         "type": type,
         "time": timestamp
     })
-    # Mantener solo últimas 50 entradas
     st.session_state.social_feed = st.session_state.social_feed[:50]
 
 def call_api(endpoint, method="GET", data=None):
@@ -390,6 +353,31 @@ def call_api(endpoint, method="GET", data=None):
         st.error(f"Error de conexión: {e}")
         return None
 
+# Sidebar
+with st.sidebar:
+    st.image("https://via.placeholder.com/300x100?text=PPM+MONEY", use_container_width=True)
+    st.markdown(f"### 👤 {st.session_state.current_user['name']}")
+    st.markdown(f"📧 {st.session_state.current_user['email']}")
+    
+    if st.button("🚪 Cerrar sesión", use_container_width=True):
+        st.session_state.authenticated = False
+        st.session_state.current_user = None
+        st.session_state.auth_page = 'login'
+        st.rerun()
+    
+    st.markdown("---")
+    st.markdown("## 📊 Navegación")
+    
+    # Usar radio buttons para navegación
+    page = st.radio("", ["🏠 Dashboard", "👥 Grupos", "💸 Gastos", "⚖️ Balances", "📱 Feed Social", "📈 Estadísticas"])
+    
+    st.markdown("---")
+    st.markdown("### ℹ️ Información")
+    st.markdown("**Versión:** 2.0  \n**Estado:** Activo")
+    
+    if st.button("🔄 Sincronizar Datos", use_container_width=True):
+        st.rerun()
+
 # Header principal
 st.markdown("""
 <div class="main-header">
@@ -398,53 +386,32 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# Sidebar - Navegación
-with st.sidebar:
-    st.image("https://via.placeholder.com/300x100?text=PPM+MONEY", use_container_width=True)
-    st.markdown("## 📊 Navegación")
-    page = st.radio("", ["🏠 Dashboard", "👥 Grupos", "💸 Gastos", "⚖️ Balances", "📱 Feed Social", "📈 Estadísticas"])
-    
-    st.markdown("---")
-    st.markdown("### ℹ️ Información")
-    st.markdown("""
-    **Versión:** 2.0  
-    **Estado:** Activo  
-    **Usuarios:** 3 miembros
-    """)
-    
-    if st.button("🔄 Sincronizar Datos", use_container_width=True):
-        st.rerun()
-
 # Página Dashboard
 if page == "🏠 Dashboard":
     col1, col2, col3 = st.columns(3)
     
     with col1:
-        with st.container():
-            st.markdown('<div class="stat-card">', unsafe_allow_html=True)
-            st.markdown("### 💰 Gastos Totales")
-            expenses = call_api("/expenses")
-            total_expenses = sum(e.get('amount', 0) for e in expenses) if expenses else 0
-            st.markdown(f'<p class="stat-number">${total_expenses:,.2f}</p>', unsafe_allow_html=True)
-            st.markdown('</div>', unsafe_allow_html=True)
+        st.markdown('<div class="stat-card">', unsafe_allow_html=True)
+        st.markdown("### 💰 Gastos Totales")
+        expenses = call_api("/expenses")
+        total_expenses = sum(e.get('amount', 0) for e in expenses) if expenses else 0
+        st.markdown(f'<p class="stat-number">${total_expenses:,.2f}</p>', unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
     
     with col2:
-        with st.container():
-            st.markdown('<div class="stat-card">', unsafe_allow_html=True)
-            st.markdown("### 👥 Grupos Activos")
-            groups = call_api("/groups")
-            total_groups = len(groups) if groups else 0
-            st.markdown(f'<p class="stat-number">{total_groups}</p>', unsafe_allow_html=True)
-            st.markdown('</div>', unsafe_allow_html=True)
+        st.markdown('<div class="stat-card">', unsafe_allow_html=True)
+        st.markdown("### 👥 Grupos Activos")
+        groups = call_api("/groups")
+        total_groups = len(groups) if groups else 0
+        st.markdown(f'<p class="stat-number">{total_groups}</p>', unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
     
     with col3:
-        with st.container():
-            st.markdown('<div class="stat-card">', unsafe_allow_html=True)
-            st.markdown("### 📝 Transacciones")
-            expenses = call_api("/expenses")
-            total_transactions = len(expenses) if expenses else 0
-            st.markdown(f'<p class="stat-number">{total_transactions}</p>', unsafe_allow_html=True)
-            st.markdown('</div>', unsafe_allow_html=True)
+        st.markdown('<div class="stat-card">', unsafe_allow_html=True)
+        st.markdown("### 📝 Transacciones")
+        total_transactions = len(expenses) if expenses else 0
+        st.markdown(f'<p class="stat-number">{total_transactions}</p>', unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
     
     st.markdown("---")
     
@@ -455,8 +422,6 @@ if page == "🏠 Dashboard":
         if expenses:
             df_expenses = pd.DataFrame(expenses)
             df_expenses['amount'] = df_expenses['amount'].astype(float)
-            df_expenses['payer'] = df_expenses['payer'].astype(str)
-            df_expenses['description'] = df_expenses['description'].astype(str)
             st.dataframe(df_expenses[['payer', 'amount', 'description']], use_container_width=True)
         else:
             st.info("No hay gastos registrados aún")
@@ -466,11 +431,9 @@ if page == "🏠 Dashboard":
         col_a, col_b = st.columns(2)
         with col_a:
             if st.button("➕ Nuevo Gasto", use_container_width=True):
-                st.session_state.page = "💸 Gastos"
                 st.rerun()
         with col_b:
             if st.button("👥 Crear Grupo", use_container_width=True):
-                st.session_state.page = "👥 Grupos"
                 st.rerun()
 
 # Página Grupos
@@ -497,14 +460,13 @@ elif page == "👥 Grupos":
         groups = call_api("/groups")
         if groups:
             for group in groups:
-                with st.container():
-                    col_a, col_b = st.columns([3, 1])
-                    with col_a:
-                        st.markdown(f"**📁 {group['name']}**")
-                        st.caption(f"ID: {group['id']}")
-                    with col_b:
-                        if st.button("Ver Detalles", key=f"btn_{group['id']}"):
-                            st.info(f"Detalles del grupo {group['name']} - Próximamente más funciones")
+                col_a, col_b = st.columns([3, 1])
+                with col_a:
+                    st.markdown(f"**📁 {group['name']}**")
+                    st.caption(f"ID: {group['id']}")
+                with col_b:
+                    if st.button("Ver Detalles", key=f"btn_{group['id']}"):
+                        st.info(f"Detalles del grupo {group['name']}")
         else:
             st.info("No hay grupos creados aún. ¡Crea tu primer grupo!")
 
@@ -521,7 +483,6 @@ elif page == "💸 Gastos":
             amount = st.number_input("Monto ($)", min_value=0.01, step=10.0, format="%0.2f")
             description = st.text_input("Concepto", placeholder="Ej: Cena, Supermercado, Salida")
             
-            # Personas que participan
             st.markdown("**¿Entre quiénes se divide?**")
             col_a, col_b, col_c = st.columns(3)
             with col_a:
@@ -545,12 +506,9 @@ elif page == "💸 Gastos":
                     "description": description
                 })
                 if result:
-                    # Calcular cuánto debe cada uno
                     share_per_person = amount / len(participants) if participants else 0
                     st.success(f"✅ Gasto registrado: ${amount:.2f} pagado por {payer}")
                     add_to_feed(f"{payer} pagó ${amount:.2f} por '{description}'", "expense")
-                    
-                    # Mostrar quién debe qué
                     for p in participants:
                         if p != payer:
                             st.info(f"💸 {p} debe ${share_per_person:.2f} a {payer}")
@@ -560,21 +518,14 @@ elif page == "💸 Gastos":
         st.markdown("### Historial de Gastos")
         expenses = call_api("/expenses")
         if expenses:
-            # Crear DataFrame para mostrar
-            df = pd.DataFrame(expenses)
-            df['amount'] = df['amount'].astype(float)
-            df['Pagos'] = df['amount'].apply(lambda x: f"${x:,.2f}")
-            
-            # Mostrar con estilo
-            for idx, expense in enumerate(df.to_dict('records')):
-                with st.container():
-                    st.markdown(f"""
-                    <div class="expense-card">
-                        <strong>💵 {expense['description']}</strong><br>
-                        Pagado por: <strong>{expense['payer']}</strong><br>
-                        Monto: <strong style="color:#667eea">${expense['amount']:,.2f}</strong>
-                    </div>
-                    """, unsafe_allow_html=True)
+            for expense in expenses:
+                st.markdown(f"""
+                <div class="expense-card">
+                    <strong>💵 {expense['description']}</strong><br>
+                    Pagado por: <strong>{expense['payer']}</strong><br>
+                    Monto: <strong style="color:#667eea">${expense['amount']:,.2f}</strong>
+                </div>
+                """, unsafe_allow_html=True)
         else:
             st.info("No hay gastos registrados. ¡Agrega tu primer gasto!")
 
@@ -590,7 +541,6 @@ elif page == "⚖️ Balances":
     with col2:
         num_people = st.number_input("Número de personas", min_value=1, max_value=10, value=3, key="balance_people")
     with col3:
-        st.markdown("### 💰")
         if st.button("Calcular", use_container_width=True):
             if total_amount > 0:
                 share = total_amount / num_people
@@ -612,7 +562,6 @@ elif page == "⚖️ Balances":
     
     expenses = call_api("/expenses")
     if expenses:
-        # Crear un resumen simple de quién debe qué
         paid_by = {}
         for expense in expenses:
             payer = expense['payer']
@@ -622,8 +571,6 @@ elif page == "⚖️ Balances":
         if paid_by:
             df_balances = pd.DataFrame([{"Persona": k, "Pagó": f"${v:,.2f}"} for k, v in paid_by.items()])
             st.dataframe(df_balances, use_container_width=True, hide_index=True)
-        else:
-            st.info("Calculando balances...")
     else:
         st.info("No hay gastos registrados para calcular balances")
 
@@ -632,7 +579,6 @@ elif page == "📱 Feed Social":
     st.markdown("## 📱 Feed Social")
     st.caption("Actividad reciente de tu grupo")
     
-    # Botón para limpiar feed
     col1, col2 = st.columns([3, 1])
     with col2:
         if st.button("🗑️ Limpiar Feed", use_container_width=True):
@@ -641,20 +587,19 @@ elif page == "📱 Feed Social":
     
     st.markdown("---")
     
-    with st.container():
-        st.markdown('<div class="social-feed">', unsafe_allow_html=True)
-        if st.session_state.social_feed:
-            for event in st.session_state.social_feed:
-                icon = "💰" if event['type'] == "expense" else "✅" if event['type'] == "success" else "ℹ️"
-                st.markdown(f"""
-                <div class="feed-item">
-                    <small style="color:#764ba2">{event['time']}</small><br>
-                    {icon} {event['message']}
-                </div>
-                """, unsafe_allow_html=True)
-        else:
-            st.info("📭 No hay actividad reciente. ¡Comienza agregando gastos o creando grupos!")
-        st.markdown('</div>', unsafe_allow_html=True)
+    st.markdown('<div class="social-feed">', unsafe_allow_html=True)
+    if st.session_state.social_feed:
+        for event in st.session_state.social_feed:
+            icon = "💰" if event['type'] == "expense" else "✅" if event['type'] == "success" else "ℹ️"
+            st.markdown(f"""
+            <div class="feed-item">
+                <small style="color:#764ba2">{event['time']}</small><br>
+                {icon} {event['message']}
+            </div>
+            """, unsafe_allow_html=True)
+    else:
+        st.info("📭 No hay actividad reciente. ¡Comienza agregando gastos o creando grupos!")
+    st.markdown('</div>', unsafe_allow_html=True)
 
 # Página Estadísticas
 elif page == "📈 Estadísticas":
@@ -685,7 +630,6 @@ elif page == "📈 Estadísticas":
         st.markdown("---")
         st.markdown("### Evolución de Gastos")
         
-        # Agregar columna de índice para simular fechas
         df['gasto_num'] = range(1, len(df) + 1)
         fig = px.line(df, x='gasto_num', y='amount', title="Flujo de Gastos", markers=True)
         fig.update_layout(xaxis_title="Número de Gasto", yaxis_title="Monto ($)")
