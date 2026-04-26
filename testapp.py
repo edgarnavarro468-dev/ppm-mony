@@ -1,12 +1,10 @@
-
-from database import Expense, Group
 from fastapi import FastAPI
 from pydantic import BaseModel
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from database import Expense
+from database import Expense, Group, User
 
 
 app = FastAPI()
@@ -19,11 +17,17 @@ class GroupInput(BaseModel):
     name: str
 
 
-
 class ExpenseInput(BaseModel):
     payer: str
     amount: int
     description: str
+
+
+class UserInput(BaseModel):
+    username: str
+    email: str
+    password: str
+
 
 @app.get("/groups")
 def get_groups():
@@ -42,6 +46,7 @@ def get_groups():
 
     return result
 
+
 @app.post("/add-group")
 def add_group(group: GroupInput):
 
@@ -55,6 +60,7 @@ def add_group(group: GroupInput):
     session.commit()
 
     return {"message":"Grupo creado"}
+
 
 @app.get("/")
 def root():
@@ -97,6 +103,23 @@ def add_expense(expense: ExpenseInput):
     return {"message":"Gasto guardado"}
 
 
+@app.post("/register")
+def register(user: UserInput):
+
+    session = Session()
+
+    new_user = User(
+        username=user.username,
+        email=user.email,
+        hashed_password=user.password
+    )
+
+    session.add(new_user)
+    session.commit()
+
+    return {"message":"Usuario creado"}
+
+
 @app.get("/balance/{total}/{people}")
 def balance(total:int, people:int):
 
@@ -107,10 +130,3 @@ def balance(total:int, people:int):
         "Diego_owes":share,
         "Fernando_owes":share
     }
-    
-    
-    #lalalalala
-    
-  #lalalalala
-  
-    

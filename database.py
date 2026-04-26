@@ -6,6 +6,15 @@ engine = create_engine("sqlite:///ppm.db")
 Base = declarative_base()
 
 
+class User(Base):
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True)
+    username = Column(String, unique=True)
+    email = Column(String, unique=True)
+    hashed_password = Column(String)
+
+
 class Group(Base):
     __tablename__ = "groups"
 
@@ -24,3 +33,4 @@ class Expense(Base):
 
 Base.metadata.create_all(engine)
 
+print("Tablas creadas")
