@@ -17,6 +17,280 @@ st.set_page_config(
 # Configuración de la API
 API_URL = "http://localhost:8000"
 
+
+
+# ==================== SISTEMA DE AUTENTICACIÓN ====================
+# Inicializar session state para autenticación
+if 'authenticated' not in st.session_state:
+    st.session_state.authenticated = False
+if 'current_user' not in st.session_state:
+    st.session_state.current_user = None
+if 'auth_page' not in st.session_state:
+    st.session_state.auth_page = 'login'  # login, register, forgot, social_register
+if 'social_provider' not in st.session_state:
+    st.session_state.social_provider = None
+
+# Usuarios simulados (en producción conectar a BD)
+if 'mock_users' not in st.session_state:
+    st.session_state.mock_users = [
+        {"email": "demo@ppm.com", "password": "123456", "name": "Alex"},
+        {"email": "edgar@ppm.com", "password": "123456", "name": "Edgar"},
+        {"email": "maria@ppm.com", "password": "123456", "name": "María"}
+    ]
+
+def show_alert(message, type="error"):
+    """Muestra mensajes de alerta"""
+    if type == "error":
+        st.error(message)
+    elif type == "success":
+        st.success(message)
+    elif type == "info":
+        st.info(message)
+
+def render_login():
+    """Pantalla de inicio de sesión"""
+    st.markdown("""
+    <style>
+        .login-card {
+            max-width: 450px;
+            margin: 0 auto;
+            padding: 2rem;
+            background: white;
+            border-radius: 2rem;
+            box-shadow: 0 20px 35px -10px rgba(0,0,0,0.15);
+        }
+        .logo-circle-auth {
+            background: #1e3a5f;
+            width: 60px;
+            height: 60px;
+            border-radius: 30px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 30px;
+            margin-bottom: 1rem;
+        }
+        .auth-title {
+            font-size: 1.8rem;
+            font-weight: 600;
+            color: #0b2b3b;
+            margin-bottom: 0.25rem;
+        }
+        .auth-sub {
+            color: #5e7a8c;
+            font-size: 0.85rem;
+            margin-bottom: 1.5rem;
+        }
+        .divider-auth {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            color: #9aaeb9;
+            font-size: 0.8rem;
+            margin: 1.2rem 0;
+        }
+        .divider-auth::before, .divider-auth::after {
+            content: "";
+            flex: 1;
+            height: 1px;
+            background: #e2edf2;
+        }
+    </style>
+    """, unsafe_allow_html=True)
+    
+    with st.container():
+        col1, col2, col3 = st.columns([1, 2, 1])
+        with col2:
+            st.markdown('<div style="text-align: center;">', unsafe_allow_html=True)
+            st.markdown('<div class="logo-circle-auth">💰</div>', unsafe_allow_html=True)
+            st.markdown('<h1 class="auth-title">GastosClaro</h1>', unsafe_allow_html=True)
+            st.markdown('<p class="auth-sub">Control total · Presupuestos inteligentes</p>', unsafe_allow_html=True)
+            st.markdown('</div>', unsafe_allow_html=True)
+            
+            st.markdown("---")
+            
+            with st.form("login_form"):
+                email = st.text_input("Correo electrónico", placeholder="tu@ejemplo.com", key="login_email")
+                password = st.text_input("Contraseña", type="password", placeholder="••••••••", key="login_password")
+                col_a, col_b = st.columns(2)
+                with col_a:
+                    remember = st.checkbox("Mantener sesión", value=False)
+                with col_b:
+                    pass
+                
+                submitted = st.form_submit_button("🔓 Iniciar sesión", use_container_width=True)
+                
+                if submitted:
+                    if email and password:
+                        user_found = None
+                        for u in st.session_state.mock_users:
+                            if u["email"].lower() == email.lower() and u["password"] == password:
+                                user_found = u
+                                break
+                        
+                        if user_found:
+                            st.session_state.authenticated = True
+                            st.session_state.current_user = user_found
+                            st.success(f"✅ ¡Bienvenido {user_found['name']}!")
+                            st.rerun()
+                        else:
+                            st.error("❌ Correo o contraseña incorrectos")
+                    else:
+                        st.warning("Por favor ingresa tus credenciales")
+            
+            # Botón de olvidé contraseña
+            if st.button("¿Olvidaste tu contraseña?", use_container_width=True):
+                st.session_state.auth_page = 'forgot'
+                st.rerun()
+            
+            st.markdown('<div class="divider-auth">o accede con</div>', unsafe_allow_html=True)
+            
+            col_g, col_a = st.columns(2)
+            with col_g:
+                if st.button("🌐 Google", use_container_width=True):
+                    st.session_state.auth_page = 'social_register'
+                    st.session_state.social_provider = 'google'
+                    st.rerun()
+            with col_a:
+                if st.button("🍎 Apple", use_container_width=True):
+                    st.session_state.auth_page = 'social_register'
+                    st.session_state.social_provider = 'apple'
+                    st.rerun()
+            
+            st.markdown("---")
+            st.markdown('<p style="text-align: center;">¿No tienes cuenta? ', unsafe_allow_html=True)
+            if st.button("Regístrate ahora", key="goto_register"):
+                st.session_state.auth_page = 'register'
+                st.rerun()
+            st.markdown('</p>', unsafe_allow_html=True)
+
+def render_register():
+    """Pantalla de registro"""
+    st.markdown("""
+    <style>
+        .logo-circle-auth { background: #1e3a5f; width: 60px; height: 60px; border-radius: 30px; display: inline-flex; align-items: center; justify-content: center; color: white; font-size: 30px; margin-bottom: 1rem; }
+        .auth-title { font-size: 1.8rem; font-weight: 600; color: #0b2b3b; text-align: center; }
+        .auth-sub { color: #5e7a8c; font-size: 0.85rem; text-align: center; margin-bottom: 1.5rem; }
+    </style>
+    """, unsafe_allow_html=True)
+    
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        st.markdown('<div style="text-align: center;"><div class="logo-circle-auth">📝</div></div>', unsafe_allow_html=True)
+        st.markdown('<h1 class="auth-title">Crear cuenta</h1>', unsafe_allow_html=True)
+        st.markdown('<p class="auth-sub">Comienza a organizar gastos con amigos</p>', unsafe_allow_html=True)
+        
+        with st.form("register_form"):
+            name = st.text_input("Nombre completo", placeholder="Ej: Ana García", key="reg_name")
+            email = st.text_input("Correo electrónico", placeholder="tu@correo.com", key="reg_email")
+            password = st.text_input("Contraseña", type="password", placeholder="Mínimo 6 caracteres", key="reg_password")
+            confirm_password = st.text_input("Confirmar contraseña", type="password", placeholder="Repite tu contraseña", key="reg_confirm")
+            
+            submitted = st.form_submit_button("📝 Registrarme", use_container_width=True)
+            
+            if submitted:
+                if not name or not email or not password:
+                    st.warning("Todos los campos son obligatorios")
+                elif len(password) < 6:
+                    st.warning("La contraseña debe tener al menos 6 caracteres")
+                elif password != confirm_password:
+                    st.warning("Las contraseñas no coinciden")
+                else:
+                    exists = any(u["email"].lower() == email.lower() for u in st.session_state.mock_users)
+                    if exists:
+                        st.error("⚠️ El correo ya está registrado")
+                    else:
+                        st.session_state.mock_users.append({"email": email, "password": password, "name": name})
+                        st.success("🎉 ¡Cuenta creada con éxito! Ahora inicia sesión")
+                        st.session_state.auth_page = 'login'
+                        st.rerun()
+        
+        st.markdown("---")
+        st.markdown('<p style="text-align: center;">¿Ya tienes cuenta? </p>', unsafe_allow_html=True)
+        if st.button("Iniciar sesión", key="goto_login"):
+            st.session_state.auth_page = 'login'
+            st.rerun()
+
+def render_forgot_password():
+    """Pantalla de recuperación de contraseña"""
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        st.markdown('<div style="text-align: center;"><div class="logo-circle-auth">🔐</div></div>', unsafe_allow_html=True)
+        st.markdown('<h1 class="auth-title">Recuperar contraseña</h1>', unsafe_allow_html=True)
+        st.markdown('<p class="auth-sub">Te enviaremos un enlace seguro</p>', unsafe_allow_html=True)
+        
+        with st.form("forgot_form"):
+            email = st.text_input("Correo electrónico registrado", placeholder="ejemplo@dominio.com", key="forgot_email")
+            submitted = st.form_submit_button("Enviar enlace de recuperación", use_container_width=True)
+            
+            if submitted:
+                if email:
+                    exists = any(u["email"].lower() == email.lower() for u in st.session_state.mock_users)
+                    if exists:
+                        st.success("📨 Hemos enviado un enlace de recuperación a tu correo (Demo)")
+                        st.session_state.auth_page = 'login'
+                        st.rerun()
+                    else:
+                        st.error("⚠️ No encontramos una cuenta con ese correo")
+                else:
+                    st.warning("Ingresa tu correo electrónico")
+        
+        st.markdown("---")
+        if st.button("← Volver a inicio de sesión", use_container_width=True):
+            st.session_state.auth_page = 'login'
+            st.rerun()
+
+def render_social_register():
+    """Pantalla de registro con Google/Apple"""
+    provider = st.session_state.social_provider or 'google'
+    provider_name = "Google" if provider == 'google' else "Apple"
+    
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        st.markdown('<div style="text-align: center;"><div class="logo-circle-auth">✨</div></div>', unsafe_allow_html=True)
+        st.markdown(f'<h1 class="auth-title">Completa tu perfil</h1>', unsafe_allow_html=True)
+        st.markdown(f'<p class="auth-sub">Registro con {provider_name}</p>', unsafe_allow_html=True)
+        
+        st.info(f"🎉 Hemos recibido tu autenticación de {provider_name}. Solo necesitamos algunos datos.")
+        
+        with st.form("social_register_form"):
+            name = st.text_input("Nombre visible", placeholder="Tu nombre en grupos", key="social_name")
+            email = st.text_input(f"Correo (de {provider_name})", placeholder=f"usuario@{provider}.com", key="social_email", value=f"usuario_{provider}@ejemplo.com")
+            
+            submitted = st.form_submit_button("Finalizar registro", use_container_width=True)
+            
+            if submitted:
+                if name and email:
+                    exists = any(u["email"].lower() == email.lower() for u in st.session_state.mock_users)
+                    if exists:
+                        st.error("⚠️ Este correo ya tiene cuenta")
+                    else:
+                        st.session_state.mock_users.append({"email": email, "password": "social_auth", "name": name})
+                        st.success(f"✅ Registro con {provider_name} completado")
+                        st.session_state.auth_page = 'login'
+                        st.rerun()
+                else:
+                    st.warning("Completa todos los campos")
+        
+        if st.button("Cancelar e ir a inicio", use_container_width=True):
+            st.session_state.auth_page = 'login'
+            st.rerun()
+
+# ==================== CHECK DE AUTENTICACIÓN ====================
+# Si no está autenticado, mostrar pantalla de login correspondiente
+if not st.session_state.authenticated:
+    if st.session_state.auth_page == 'login':
+        render_login()
+    elif st.session_state.auth_page == 'register':
+        render_register()
+    elif st.session_state.auth_page == 'forgot':
+        render_forgot_password()
+    elif st.session_state.auth_page == 'social_register':
+        render_social_register()
+    st.stop() 
+
+
 # Estilos CSS personalizados
 st.markdown("""
 <style>
